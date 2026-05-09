@@ -25,11 +25,17 @@ jobs:
       - name: Upload Akhil.txt to GCS
         run: |
           gsutil cp Akhil.txt gs://lumibucket-1/Akhil.txt
-          echo "Uploaded Akhil.txt to gs://lumibucket-1/Akhil.txt"
+          echo "Uploaded Akhil.txt"
 
-      - name: Upload PySpark script to GCS
+      - name: Upload Manu.txt to GCS
+        run: |
+          gsutil cp Manu.txt gs://lumibucket-1/Manu.txt
+          echo "Uploaded Manu.txt"
+
+      - name: Upload PySpark scripts to GCS
         run: |
           gsutil cp scripts/gcs_to_bq.py gs://lumibucket-1/scripts/gcs_to_bq.py
+          gsutil cp scripts/gcs_to_bq_manu.py gs://lumibucket-1/scripts/gcs_to_bq_manu.py
 
       - name: Create ephemeral Dataproc cluster
         run: |
@@ -42,7 +48,7 @@ jobs:
             --image-version=2.1-debian11 \
             --max-idle=10m
 
-      - name: Submit Dataproc PySpark job
+      - name: Submit PySpark job for Akhil.txt
         run: |
           gcloud dataproc jobs submit pyspark \
             gs://lumibucket-1/scripts/gcs_to_bq.py \
@@ -53,6 +59,19 @@ jobs:
             -- \
             gs://lumibucket-1/Akhil.txt \
             crested-acumen-495421-n0.demo_dataset.akhil_table \
+            lumibucket-1
+
+      - name: Submit PySpark job for Manu.txt
+        run: |
+          gcloud dataproc jobs submit pyspark \
+            gs://lumibucket-1/scripts/gcs_to_bq_manu.py \
+            --cluster=akhil-demo-cluster \
+            --region=us-central1 \
+            --project=crested-acumen-495421-n0 \
+            --jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.32.2.jar \
+            -- \
+            gs://lumibucket-1/Manu.txt \
+            crested-acumen-495421-n0.demo_dataset.manu_table \
             lumibucket-1
 
       - name: Delete Dataproc cluster

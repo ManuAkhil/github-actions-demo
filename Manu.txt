@@ -1,0 +1,6 @@
+id,name,age,city,department,salary
+1,Manu,28,New York,Engineering,95000
+2,Akhil,30,San Francisco,Data Engineering,105000
+3,Priya,25,Austin,Analytics,88000
+4,Rahul,32,Seattle,Machine Learning,115000
+5,Sneha,27,Chicago,Data Science,92000
