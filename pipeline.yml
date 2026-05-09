@@ -1,0 +1,68 @@
+name: Upload to GCS and Run Dataproc Job
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      # STEP 1 — Upload Akhil.txt to GCS
+      - name: Upload Akhil.txt to GCS
+        run: |
+          gsutil cp Akhil.txt gs://lumibucket-1/Akhil.txt
+          echo "Uploaded Akhil.txt to gs://lumibucket-1/Akhil.txt"
+
+      # STEP 2 — Upload PySpark script to GCS
+      - name: Upload PySpark script to GCS
+        run: |
+          gsutil cp scripts/gcs_to_bq.py gs://lumibucket-1/scripts/gcs_to_bq.py
+
+      # STEP 3 — Create ephemeral Dataproc cluster
+      - name: Create Dataproc cluster
+        run: |
+          gcloud dataproc clusters create akhil-demo-cluster \
+            --region=us-central1 \
+            --project=crested-acumen-495421-n0 \
+            --single-node \
+            --master-machine-type=n1-standard-2 \
+            --master-boot-disk-size=50GB \
+            --image-version=2.1-debian11
+
+      # STEP 4 — Submit PySpark job (GCS -> BigQuery)
+      - name: Submit Dataproc PySpark job
+        run: |
+          gcloud dataproc jobs submit pyspark \
+            gs://lumibucket-1/scripts/gcs_to_bq.py \
+            --cluster=akhil-demo-cluster \
+            --region=us-central1 \
+            --project=crested-acumen-495421-n0 \
+            --jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.32.2.jar \
+            -- \
+            gs://lumibucket-1/Akhil.txt \
+            crested-acumen-495421-n0.demo_dataset.akhil_table \
+            lumibucket-1
+
+      # STEP 5 — Delete cluster (always runs even if job fails)
+      - name: Delete Dataproc cluster
+        if: always()
+        run: |
+          gcloud dataproc clusters delete akhil-demo-cluster \
+            --region=us-central1 \
+            --project=crested-acumen-495421-n0 \
+            --quiet
