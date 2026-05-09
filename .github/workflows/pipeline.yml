@@ -41,6 +41,7 @@ jobs:
         run: |
           gcloud dataproc clusters create akhil-demo-cluster \
             --region=us-central1 \
+            --zone="" \
             --project=crested-acumen-495421-n0 \
             --single-node \
             --master-machine-type=n1-standard-2 \
