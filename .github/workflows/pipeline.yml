@@ -22,18 +22,14 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      # STEP 1 — Upload Akhil.txt to GCS
       - name: Upload Akhil.txt to GCS
         run: |
           gsutil cp Akhil.txt gs://lumibucket-1/Akhil.txt
-          echo "Uploaded Akhil.txt to gs://lumibucket-1/Akhil.txt"
 
-      # STEP 2 — Upload PySpark script to GCS
       - name: Upload PySpark script to GCS
         run: |
           gsutil cp scripts/gcs_to_bq.py gs://lumibucket-1/scripts/gcs_to_bq.py
 
-      # STEP 3 — Create ephemeral Dataproc cluster
       - name: Create Dataproc cluster
         run: |
           gcloud dataproc clusters create akhil-demo-cluster \
@@ -44,7 +40,6 @@ jobs:
             --master-boot-disk-size=50GB \
             --image-version=2.1-debian11
 
-      # STEP 4 — Submit PySpark job (GCS -> BigQuery)
       - name: Submit Dataproc PySpark job
         run: |
           gcloud dataproc jobs submit pyspark \
@@ -58,7 +53,6 @@ jobs:
             crested-acumen-495421-n0.demo_dataset.akhil_table \
             lumibucket-1
 
-      # STEP 5 — Delete cluster (always runs even if job fails)
       - name: Delete Dataproc cluster
         if: always()
         run: |
