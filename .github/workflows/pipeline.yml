@@ -1,9 +1,15 @@
-name: Upload to GCS and Run Dataproc Job
+name: GCS to BQ via Dataflow + Auto copy to table2
 
 on:
   push:
     branches:
       - main
+
+env:
+  PROJECT: crested-acumen-495421-n0
+  REGION: us-central1
+  BUCKET: lumibucket-1
+  DATASET: demo_dataset
 
 jobs:
   pipeline:
@@ -11,6 +17,7 @@ jobs:
 
     steps:
 
+      # ── SETUP ───────────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -22,63 +29,43 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Upload Akhil.txt to GCS
-        run: |
-          gsutil cp Akhil.txt gs://lumibucket-1/Akhil.txt
-          echo "Uploaded Akhil.txt"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # ── STEP 1: Upload Manu.txt to GCS ─────────────────────────────────────
       - name: Upload Manu.txt to GCS
         run: |
           gsutil cp Manu.txt gs://lumibucket-1/Manu.txt
-          echo "Uploaded Manu.txt"
+          echo "Uploaded Manu.txt to GCS"
 
-      - name: Upload PySpark scripts to GCS
+      # ── STEP 2: Upload scripts to GCS ──────────────────────────────────────
+      - name: Upload scripts to GCS
         run: |
-          gsutil cp scripts/gcs_to_bq.py gs://lumibucket-1/scripts/gcs_to_bq.py
-          gsutil cp scripts/gcs_to_bq_manu.py gs://lumibucket-1/scripts/gcs_to_bq_manu.py
+          gsutil cp scripts/gcs_to_bq_dataflow.py gs://lumibucket-1/scripts/gcs_to_bq_dataflow.py
+          echo "Uploaded Dataflow script"
 
-      - name: Create ephemeral Dataproc cluster
+      # ── STEP 3: Submit Dataflow job (GCS -> BQ table1) ─────────────────────
+      - name: Submit Dataflow job - GCS to BQ table1
         run: |
-          gcloud dataproc clusters create akhil-demo-cluster \
-            --region=us-central1 \
+          python scripts/gcs_to_bq_dataflow.py \
+            --input=gs://lumibucket-1/Manu.txt \
+            --bq_table=crested-acumen-495421-n0:demo_dataset.manu_table1 \
             --project=crested-acumen-495421-n0 \
-            --single-node \
-            --master-machine-type=e2-standard-2 \
-            --master-boot-disk-type=pd-standard \
-            --master-boot-disk-size=32GB \
-            --image-version=2.1-debian11 \
-            --max-idle=10m
+            --bucket=lumibucket-1 \
+            --region=us-central1
+          echo "Dataflow job submitted for GCS to BQ table1"
 
-      - name: Submit PySpark job for Akhil.txt
+      # ── STEP 4: Auto copy BQ table1 -> BQ table2 ───────────────────────────
+      - name: Copy BQ table1 to table2 automatically
         run: |
-          gcloud dataproc jobs submit pyspark \
-            gs://lumibucket-1/scripts/gcs_to_bq.py \
-            --cluster=akhil-demo-cluster \
-            --region=us-central1 \
+          python scripts/bq_table1_to_table2.py \
             --project=crested-acumen-495421-n0 \
-            --jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.32.2.jar \
-            -- \
-            gs://lumibucket-1/Akhil.txt \
-            crested-acumen-495421-n0.demo_dataset.akhil_table \
-            lumibucket-1
-
-      - name: Submit PySpark job for Manu.txt
-        run: |
-          gcloud dataproc jobs submit pyspark \
-            gs://lumibucket-1/scripts/gcs_to_bq_manu.py \
-            --cluster=akhil-demo-cluster \
-            --region=us-central1 \
-            --project=crested-acumen-495421-n0 \
-            --jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.32.2.jar \
-            -- \
-            gs://lumibucket-1/Manu.txt \
-            crested-acumen-495421-n0.demo_dataset.manu_table \
-            lumibucket-1
-
-      - name: Delete Dataproc cluster
-        if: always()
-        run: |
-          gcloud dataproc clusters delete akhil-demo-cluster \
-            --region=us-central1 \
-            --project=crested-acumen-495421-n0 \
-            --quiet
+            --dataset=demo_dataset \
+            --table1=manu_table1 \
+            --table2=manu_table2
+          echo "table2 created and data copied from table1"
