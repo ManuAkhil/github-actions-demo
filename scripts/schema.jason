@@ -1,0 +1,28 @@
+{
+  "BigQuery Schema": [
+    {
+      "name": "id",
+      "type": "INTEGER"
+    },
+    {
+      "name": "name",
+      "type": "STRING"
+    },
+    {
+      "name": "age",
+      "type": "INTEGER"
+    },
+    {
+      "name": "city",
+      "type": "STRING"
+    },
+    {
+      "name": "department",
+      "type": "STRING"
+    },
+    {
+      "name": "salary",
+      "type": "INTEGER"
+    }
+  ]
+}
