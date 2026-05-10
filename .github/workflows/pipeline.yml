@@ -20,13 +20,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Decode SA key and authenticate
+      - name: Decode SA key
         run: |
           echo "${{ secrets.GCP_SA_KEY }}" | base64 --decode > /tmp/sa-key.json
+          echo "Key decoded successfully"
+
+      - name: Authenticate to GCP
+        run: |
           gcloud auth activate-service-account \
             --key-file=/tmp/sa-key.json \
             --project=crested-acumen-495421-n0
           gcloud config set project crested-acumen-495421-n0
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json" >> $GITHUB_ENV
           gcloud auth list
 
       - name: Set up gcloud
@@ -46,13 +52,13 @@ jobs:
       - name: Upload Manu.txt to GCS
         run: |
           gsutil cp Manu.txt gs://lumibucket-1/Manu.txt
-          echo "Uploaded Manu.txt to GCS"
+          echo "Uploaded Manu.txt"
 
       - name: Upload scripts to GCS
         run: |
           gsutil cp scripts/gcs_to_bq_dataflow.py \
             gs://lumibucket-1/scripts/gcs_to_bq_dataflow.py
-          echo "Uploaded Dataflow script"
+          echo "Uploaded scripts"
 
       - name: Submit Dataflow job - GCS to BQ table1
         run: |
@@ -61,7 +67,8 @@ jobs:
             --bq_table=crested-acumen-495421-n0:demo_dataset.manu_table1 \
             --project=crested-acumen-495421-n0 \
             --bucket=lumibucket-1 \
-            --region=us-central1
+            --region=us-central1 \
+            --sa_key=/tmp/sa-key.json
 
       - name: Copy BQ table1 to table2 automatically
         run: |
