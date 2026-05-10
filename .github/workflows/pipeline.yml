@@ -1,15 +1,9 @@
-name: GCS to BQ via Dataflow + Auto copy to table2
+name: Simple GCS to BQ Pipeline
 
 on:
   push:
     branches:
       - main
-
-env:
-  PROJECT: crested-acumen-495421-n0
-  REGION: us-central1
-  BUCKET: lumibucket-1
-  DATASET: demo_dataset
 
 jobs:
   pipeline:
@@ -23,7 +17,6 @@ jobs:
       - name: Decode SA key
         run: |
           echo "${{ secrets.GCP_SA_KEY }}" | base64 --decode > /tmp/sa-key.json
-          echo "Key decoded successfully"
 
       - name: Authenticate to GCP
         run: |
@@ -31,49 +24,30 @@ jobs:
             --key-file=/tmp/sa-key.json \
             --project=crested-acumen-495421-n0
           gcloud config set project crested-acumen-495421-n0
-          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json" >> $GITHUB_ENV
-          gcloud auth list
 
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: crested-acumen-495421-n0
-          skip_install: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
+      # STEP 1 - Upload Manu.txt to GCS
       - name: Upload Manu.txt to GCS
         run: |
           gsutil cp Manu.txt gs://lumibucket-1/Manu.txt
-          echo "Uploaded Manu.txt"
+          echo "Done - Manu.txt is in GCS"
 
-      - name: Upload scripts to GCS
+      # STEP 2 - Load GCS file into BQ table1
+      - name: Load GCS to BQ table1
         run: |
-          gsutil cp scripts/gcs_to_bq_dataflow.py \
-            gs://lumibucket-1/scripts/gcs_to_bq_dataflow.py
-          echo "Uploaded scripts"
+          bq load \
+            --source_format=CSV \
+            --skip_leading_rows=1 \
+            --autodetect \
+            crested-acumen-495421-n0:demo_dataset.manu_table1 \
+            gs://lumibucket-1/Manu.txt
+          echo "Done - data loaded into manu_table1"
 
-      - name: Submit Dataflow job - GCS to BQ table1
+      # STEP 3 - Auto copy table1 to table2
+      - name: Copy BQ table1 to table2
         run: |
-          python scripts/gcs_to_bq_dataflow.py \
-            --input=gs://lumibucket-1/Manu.txt \
-            --bq_table=crested-acumen-495421-n0:demo_dataset.manu_table1 \
-            --project=crested-acumen-495421-n0 \
-            --bucket=lumibucket-1 \
-            --region=us-central1 \
-            --sa_key=/tmp/sa-key.json
-
-      - name: Copy BQ table1 to table2 automatically
-        run: |
-          python scripts/bq_table1_to_table2.py \
-            --project=crested-acumen-495421-n0 \
-            --dataset=demo_dataset \
-            --table1=manu_table1 \
-            --table2=manu_table2
+          bq query \
+            --use_legacy_sql=false \
+            --project_id=crested-acumen-495421-n0 \
+            "CREATE OR REPLACE TABLE \`crested-acumen-495421-n0.demo_dataset.manu_table2\`
+             AS SELECT * FROM \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
+          echo "Done - manu_table2 created from manu_table1"
