@@ -25,35 +25,24 @@ jobs:
             --project=crested-acumen-495421-n0
           gcloud config set project crested-acumen-495421-n0
 
-      # STEP 1 - Upload Manu.txt + helper files to GCS
+      # STEP 1 - Upload files to GCS
       - name: Upload files to GCS
         run: |
-          gsutil cp Manu.txt           gs://lumibucket-1/Manu.txt
-          gsutil cp scripts/schema.json  gs://lumibucket-1/scripts/schema.json
+          gsutil cp Manu.txt            gs://lumibucket-1/Manu.txt
+          gsutil cp scripts/schema.json gs://lumibucket-1/scripts/schema.json
           gsutil cp scripts/transform.js gs://lumibucket-1/scripts/transform.js
-          echo "Done - all files uploaded to GCS"
+          echo "Done - all files uploaded"
 
-      # STEP 2 - Run official Google Dataflow template (GCS CSV -> BQ)
+      # STEP 2 - Run Dataflow template (no line breaks in --parameters)
       - name: Run Dataflow job - GCS to BQ table1
         run: |
-          gcloud dataflow jobs run manu-gcs-to-bq \
-            --gcs-location=gs://dataflow-templates-us-central1/latest/GCS_Text_to_BigQuery \
-            --region=us-central1 \
-            --project=crested-acumen-495421-n0 \
-            --staging-location=gs://lumibucket-1/dataflow/staging \
-            --parameters="\
-              javascriptTextTransformGcsPath=gs://lumibucket-1/scripts/transform.js,\
-              JSONPath=gs://lumibucket-1/scripts/schema.json,\
-              javascriptTextTransformFunctionName=transform,\
-              inputFilePattern=gs://lumibucket-1/Manu.txt,\
-              outputTable=crested-acumen-495421-n0:demo_dataset.manu_table1,\
-              bigQueryLoadingTemporaryDirectory=gs://lumibucket-1/dataflow/temp"
-          echo "Dataflow job submitted successfully"
+          gcloud dataflow jobs run manu-gcs-to-bq --gcs-location=gs://dataflow-templates-us-central1/latest/GCS_Text_to_BigQuery --region=us-central1 --project=crested-acumen-495421-n0 --staging-location=gs://lumibucket-1/dataflow/staging --parameters=javascriptTextTransformGcsPath=gs://lumibucket-1/scripts/transform.js,JSONPath=gs://lumibucket-1/scripts/schema.json,javascriptTextTransformFunctionName=transform,inputFilePattern=gs://lumibucket-1/Manu.txt,outputTable=crested-acumen-495421-n0:demo_dataset.manu_table1,bigQueryLoadingTemporaryDirectory=gs://lumibucket-1/dataflow/temp
+          echo "Dataflow job submitted"
 
       # STEP 3 - Wait for Dataflow job to finish
       - name: Wait for Dataflow job to complete
         run: |
-          echo "Waiting for Dataflow job..."
+          echo "Polling Dataflow job status..."
           for i in {1..20}; do
             STATUS=$(gcloud dataflow jobs list \
               --region=us-central1 \
@@ -61,18 +50,18 @@ jobs:
               --filter="name=manu-gcs-to-bq" \
               --format="value(state)" \
               --limit=1)
-            echo "Job status: $STATUS"
+            echo "Status: $STATUS"
             if [ "$STATUS" = "Done" ]; then
-              echo "Dataflow job completed!"
+              echo "Job completed successfully!"
               break
-            elif [ "$STATUS" = "Failed" ]; then
-              echo "Dataflow job failed!"
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+              echo "Job failed!"
               exit 1
             fi
             sleep 30
           done
 
-      # STEP 4 - Auto copy table1 to table2
+      # STEP 4 - Copy table1 to table2
       - name: Copy BQ table1 to table2
         run: |
           bq query \
@@ -80,4 +69,4 @@ jobs:
             --project_id=crested-acumen-495421-n0 \
             "CREATE OR REPLACE TABLE \`crested-acumen-495421-n0.demo_dataset.manu_table2\`
              AS SELECT * FROM \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
-          echo "Done - manu_table2 created from manu_table1"
+          echo "Done - manu_table2 created"
