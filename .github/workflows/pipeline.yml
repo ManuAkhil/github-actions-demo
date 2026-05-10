@@ -1,4 +1,4 @@
-name: GCS to BQ via Dataflow Template
+name: GCS to BQ Pipeline
 
 on:
   push:
@@ -25,48 +25,68 @@ jobs:
             --project=crested-acumen-495421-n0
           gcloud config set project crested-acumen-495421-n0
 
-      # STEP 1 - Upload files to GCS
-      - name: Upload files to GCS
+      # STEP 1 - Upload all files to GCS
+      - name: Step 1 - Upload files to GCS
         run: |
-          gsutil cp Manu.txt            gs://lumibucket-1/Manu.txt
-          gsutil cp scripts/schema.json gs://lumibucket-1/scripts/schema.json
+          gsutil cp Manu.txt             gs://lumibucket-1/Manu.txt
+          gsutil cp scripts/schema.json  gs://lumibucket-1/scripts/schema.json
           gsutil cp scripts/transform.js gs://lumibucket-1/scripts/transform.js
-          echo "Done - all files uploaded"
+          echo "Done - all files uploaded to GCS"
 
-      # STEP 2 - Run Dataflow template (no line breaks in --parameters)
-      - name: Run Dataflow job - GCS to BQ table1
+      # STEP 2 - Dataflow job: GCS -> BQ table1
+      - name: Step 2 - Dataflow job GCS to BQ table1
         run: |
-          gcloud dataflow jobs run manu-gcs-to-bq --gcs-location=gs://dataflow-templates-us-central1/latest/GCS_Text_to_BigQuery --region=us-central1 --project=crested-acumen-495421-n0 --staging-location=gs://lumibucket-1/dataflow/staging --parameters=javascriptTextTransformGcsPath=gs://lumibucket-1/scripts/transform.js,JSONPath=gs://lumibucket-1/scripts/schema.json,javascriptTextTransformFunctionName=transform,inputFilePattern=gs://lumibucket-1/Manu.txt,outputTable=crested-acumen-495421-n0:demo_dataset.manu_table1,bigQueryLoadingTemporaryDirectory=gs://lumibucket-1/dataflow/temp
+          gcloud dataflow jobs run manu-gcs-to-bq \
+            --gcs-location=gs://dataflow-templates-us-central1/latest/GCS_Text_to_BigQuery \
+            --region=us-central1 \
+            --project=crested-acumen-495421-n0 \
+            --staging-location=gs://lumibucket-1/dataflow/staging \
+            --parameters=inputFilePattern=gs://lumibucket-1/Manu.txt \
+            --parameters=JSONPath=gs://lumibucket-1/scripts/schema.json \
+            --parameters=outputTable=crested-acumen-495421-n0:demo_dataset.manu_table1 \
+            --parameters=bigQueryLoadingTemporaryDirectory=gs://lumibucket-1/dataflow/temp \
+            --parameters=javascriptTextTransformGcsPath=gs://lumibucket-1/scripts/transform.js \
+            --parameters=javascriptTextTransformFunctionName=transform
           echo "Dataflow job submitted"
 
-      # STEP 3 - Wait for Dataflow job to finish
-      - name: Wait for Dataflow job to complete
+      # STEP 3 - Poll until Dataflow job is done
+      - name: Step 3 - Wait for Dataflow job
         run: |
-          echo "Polling Dataflow job status..."
-          for i in {1..20}; do
+          echo "Polling Dataflow job every 30s..."
+          for i in {1..30}; do
             STATUS=$(gcloud dataflow jobs list \
               --region=us-central1 \
               --project=crested-acumen-495421-n0 \
               --filter="name=manu-gcs-to-bq" \
               --format="value(state)" \
               --limit=1)
-            echo "Status: $STATUS"
+            echo "Attempt $i - Status: $STATUS"
             if [ "$STATUS" = "Done" ]; then
-              echo "Job completed successfully!"
+              echo "Dataflow job completed!"
               break
             elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-              echo "Job failed!"
+              echo "Dataflow job failed!"
               exit 1
             fi
             sleep 30
           done
 
-      # STEP 4 - Copy table1 to table2
-      - name: Copy BQ table1 to table2
+      # STEP 4 - bq query: CREATE table2 with same schema as table1
+      - name: Step 4 - Create manu_table2 with same schema
         run: |
           bq query \
             --use_legacy_sql=false \
             --project_id=crested-acumen-495421-n0 \
             "CREATE OR REPLACE TABLE \`crested-acumen-495421-n0.demo_dataset.manu_table2\`
-             AS SELECT * FROM \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
+             LIKE \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
           echo "Done - manu_table2 created"
+
+      # STEP 5 - bq query: Copy data from table1 to table2
+      - name: Step 5 - Copy data from table1 to table2
+        run: |
+          bq query \
+            --use_legacy_sql=false \
+            --project_id=crested-acumen-495421-n0 \
+            "INSERT INTO \`crested-acumen-495421-n0.demo_dataset.manu_table2\`
+             SELECT * FROM \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
+          echo "Done - data copied to table2"
