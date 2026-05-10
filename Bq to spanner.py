@@ -1,38 +1,51 @@
 """
-PySpark job: BigQuery -> Cloud Spanner
-Reads manu_table from BQ and writes to Spanner.
+Simple script: BQ table2 -> Cloud Spanner
+Reads data from BigQuery manu_table2 and writes to Spanner.
 """
 
-import sys
-from pyspark.sql import SparkSession
+from google.cloud import bigquery
+from google.cloud import spanner
 
-BQ_TABLE       = sys.argv[1]   # crested-acumen-495421-n0.demo_dataset.manu_table
-BQ_TEMP_BUCKET = sys.argv[2]   # lumibucket-1
-SPANNER_INSTANCE = sys.argv[3] # my-spanner-instance
-SPANNER_DATABASE = sys.argv[4] # my-spanner-db
-SPANNER_TABLE    = sys.argv[5] # manu_table
+# Config
+PROJECT          = "crested-acumen-495421-n0"
+BQ_DATASET       = "demo_dataset"
+BQ_TABLE         = "manu_table2"
+SPANNER_INSTANCE = "manu-spanner"
+SPANNER_DATABASE = "manu_db"
+SPANNER_TABLE    = "manu_table"
 
-spark = SparkSession.builder.appName("BQ-to-Spanner").getOrCreate()
 
-# Read from BigQuery
-df = spark.read \
-    .format("bigquery") \
-    .option("table", BQ_TABLE) \
-    .option("temporaryGcsBucket", BQ_TEMP_BUCKET) \
-    .load()
+def main():
+    # Step 1 - Read from BQ table2
+    print("Reading from BigQuery manu_table2...")
+    bq_client = bigquery.Client(project=PROJECT)
 
-df.show()
-print(f"Rows read from BQ: {df.count()}")
+    rows = bq_client.query(
+        f"SELECT id, name, age, city, department, salary "
+        f"FROM `{PROJECT}.{BQ_DATASET}.{BQ_TABLE}`"
+    ).result()
 
-# Write to Spanner using the Spark-Spanner connector
-df.write \
-    .format("cloud-spanner") \
-    .option("projectId", "crested-acumen-495421-n0") \
-    .option("instanceId", SPANNER_INSTANCE) \
-    .option("databaseId", SPANNER_DATABASE) \
-    .option("table", SPANNER_TABLE) \
-    .mode("overwrite") \
-    .save()
+    data = [
+        (row.id, row.name, row.age, row.city, row.department, row.salary)
+        for row in rows
+    ]
+    print(f"Read {len(data)} rows from BigQuery")
 
-print(f"Done! Written to Spanner {SPANNER_INSTANCE}/{SPANNER_DATABASE}/{SPANNER_TABLE}")
-spark.stop()
+    # Step 2 - Write to Spanner
+    print("Writing to Spanner...")
+    spanner_client = spanner.Client(project=PROJECT)
+    instance       = spanner_client.instance(SPANNER_INSTANCE)
+    database       = instance.database(SPANNER_DATABASE)
+
+    with database.batch() as batch:
+        batch.insert_or_update(
+            table=SPANNER_TABLE,
+            columns=["id", "name", "age", "city", "department", "salary"],
+            values=data,
+        )
+
+    print(f"Done! {len(data)} rows written to Spanner {SPANNER_TABLE}")
+
+
+if __name__ == "__main__":
+    main()

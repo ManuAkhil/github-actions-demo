@@ -1,4 +1,4 @@
-name: GCS to BQ Pipeline
+name: GCS to BQ to Spanner Pipeline
 
 on:
   push:
@@ -24,14 +24,24 @@ jobs:
             --key-file=/tmp/sa-key.json \
             --project=crested-acumen-495421-n0
           gcloud config set project crested-acumen-495421-n0
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json" >> $GITHUB_ENV
 
-      # STEP 1 - Upload all files to GCS
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # STEP 1 - Upload files to GCS
       - name: Step 1 - Upload files to GCS
         run: |
           gsutil cp Manu.txt             gs://lumibucket-1/Manu.txt
           gsutil cp scripts/schema.json  gs://lumibucket-1/scripts/schema.json
           gsutil cp scripts/transform.js gs://lumibucket-1/scripts/transform.js
-          echo "Done - all files uploaded to GCS"
+          echo "Done - files uploaded to GCS"
 
       # STEP 2 - Dataflow job: GCS -> BQ table1
       - name: Step 2 - Dataflow job GCS to BQ table1
@@ -71,7 +81,7 @@ jobs:
             sleep 30
           done
 
-      # STEP 4 - bq query: CREATE table2 with same schema as table1
+      # STEP 4 - Create table2 with same schema as table1
       - name: Step 4 - Create manu_table2 with same schema
         run: |
           bq query \
@@ -81,7 +91,7 @@ jobs:
              LIKE \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
           echo "Done - manu_table2 created"
 
-      # STEP 5 - bq query: Copy data from table1 to table2
+      # STEP 5 - Copy data from table1 to table2
       - name: Step 5 - Copy data from table1 to table2
         run: |
           bq query \
@@ -90,3 +100,9 @@ jobs:
             "INSERT INTO \`crested-acumen-495421-n0.demo_dataset.manu_table2\`
              SELECT * FROM \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
           echo "Done - data copied to table2"
+
+      # STEP 6 - Copy data from BQ table2 to Spanner
+      - name: Step 6 - Copy BQ table2 to Spanner
+        run: |
+          python scripts/bq_to_spanner.py
+          echo "Done - data written to Spanner"
