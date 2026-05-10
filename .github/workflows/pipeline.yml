@@ -17,7 +17,6 @@ jobs:
 
     steps:
 
-      # ── SETUP ───────────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -25,9 +24,21 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+          export_environment_variables: true
+          create_credentials_file: true
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: crested-acumen-495421-n0
+
+      - name: Explicitly activate service account for gsutil
+        run: |
+          gcloud auth activate-service-account \
+            --key-file=$GOOGLE_APPLICATION_CREDENTIALS \
+            --project=crested-acumen-495421-n0
+          gcloud config set project crested-acumen-495421-n0
+          gcloud auth list
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,19 +48,16 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      # ── STEP 1: Upload Manu.txt to GCS ─────────────────────────────────────
       - name: Upload Manu.txt to GCS
         run: |
           gsutil cp Manu.txt gs://lumibucket-1/Manu.txt
           echo "Uploaded Manu.txt to GCS"
 
-      # ── STEP 2: Upload scripts to GCS ──────────────────────────────────────
       - name: Upload scripts to GCS
         run: |
           gsutil cp scripts/gcs_to_bq_dataflow.py gs://lumibucket-1/scripts/gcs_to_bq_dataflow.py
           echo "Uploaded Dataflow script"
 
-      # ── STEP 3: Submit Dataflow job (GCS -> BQ table1) ─────────────────────
       - name: Submit Dataflow job - GCS to BQ table1
         run: |
           python scripts/gcs_to_bq_dataflow.py \
@@ -58,9 +66,7 @@ jobs:
             --project=crested-acumen-495421-n0 \
             --bucket=lumibucket-1 \
             --region=us-central1
-          echo "Dataflow job submitted for GCS to BQ table1"
 
-      # ── STEP 4: Auto copy BQ table1 -> BQ table2 ───────────────────────────
       - name: Copy BQ table1 to table2 automatically
         run: |
           python scripts/bq_table1_to_table2.py \
@@ -68,4 +74,3 @@ jobs:
             --dataset=demo_dataset \
             --table1=manu_table1 \
             --table2=manu_table2
-          echo "table2 created and data copied from table1"
