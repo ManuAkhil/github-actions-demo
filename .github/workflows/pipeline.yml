@@ -1,4 +1,4 @@
-name: GCS to BQ to Spanner Pipeline
+name: GCS to BQ to Spanner and MySQL Pipeline
 
 on:
   push:
@@ -24,7 +24,6 @@ jobs:
             --key-file=/tmp/sa-key.json \
             --project=crested-acumen-495421-n0
           gcloud config set project crested-acumen-495421-n0
-          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json" >> $GITHUB_ENV
 
       - name: Set up Python
@@ -101,8 +100,14 @@ jobs:
              SELECT * FROM \`crested-acumen-495421-n0.demo_dataset.manu_table1\`"
           echo "Done - data copied to table2"
 
-      # STEP 6 - Copy data from BQ table2 to Spanner
+      # STEP 6 - Copy BQ table2 to Spanner
       - name: Step 6 - Copy BQ table2 to Spanner
         run: |
           python scripts/bq_to_spanner.py
           echo "Done - data written to Spanner"
+
+      # STEP 7 - Copy BQ table2 to MySQL
+      - name: Step 7 - Copy BQ table2 to MySQL
+        run: |
+          python scripts/bq_to_mysql.py
+          echo "Done - data written to MySQL"
