@@ -5,3 +5,4 @@ id,name,age,city,department,salary
 4,Rahul,32,Seattle,Machine Learning,115000
 5,Sneha,27,Chicago,Data Science,92000fix credentials Sun May 10 05:19:19 IST 2026
 retry with base64 key
+fix dataflow permissions
