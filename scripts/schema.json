@@ -1,28 +1,10 @@
 {
   "BigQuery Schema": [
-    {
-      "name": "id",
-      "type": "INTEGER"
-    },
-    {
-      "name": "name",
-      "type": "STRING"
-    },
-    {
-      "name": "age",
-      "type": "INTEGER"
-    },
-    {
-      "name": "city",
-      "type": "STRING"
-    },
-    {
-      "name": "department",
-      "type": "STRING"
-    },
-    {
-      "name": "salary",
-      "type": "INTEGER"
-    }
+    {"name": "id",         "type": "INTEGER", "mode": "NULLABLE"},
+    {"name": "name",       "type": "STRING",  "mode": "NULLABLE"},
+    {"name": "age",        "type": "INTEGER", "mode": "NULLABLE"},
+    {"name": "city",       "type": "STRING",  "mode": "NULLABLE"},
+    {"name": "department", "type": "STRING",  "mode": "NULLABLE"},
+    {"name": "salary",     "type": "INTEGER", "mode": "NULLABLE"}
   ]
 }
