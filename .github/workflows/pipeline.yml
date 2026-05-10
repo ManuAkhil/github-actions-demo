@@ -20,25 +20,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-          export_environment_variables: true
-          create_credentials_file: true
+      - name: Decode SA key and authenticate
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" | base64 --decode > /tmp/sa-key.json
+          gcloud auth activate-service-account \
+            --key-file=/tmp/sa-key.json \
+            --project=crested-acumen-495421-n0
+          gcloud config set project crested-acumen-495421-n0
+          gcloud auth list
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: crested-acumen-495421-n0
-
-      - name: Explicitly activate service account for gsutil
-        run: |
-          gcloud auth activate-service-account \
-            --key-file=$GOOGLE_APPLICATION_CREDENTIALS \
-            --project=crested-acumen-495421-n0
-          gcloud config set project crested-acumen-495421-n0
-          gcloud auth list
+          skip_install: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -55,7 +50,8 @@ jobs:
 
       - name: Upload scripts to GCS
         run: |
-          gsutil cp scripts/gcs_to_bq_dataflow.py gs://lumibucket-1/scripts/gcs_to_bq_dataflow.py
+          gsutil cp scripts/gcs_to_bq_dataflow.py \
+            gs://lumibucket-1/scripts/gcs_to_bq_dataflow.py
           echo "Uploaded Dataflow script"
 
       - name: Submit Dataflow job - GCS to BQ table1
