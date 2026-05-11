@@ -37,23 +37,38 @@ jobs:
       # STEP 2 - Upload DAG to Composer
       - name: Step 2 - Upload DAG to Composer
         run: |
-          # Get the Composer DAGs bucket
           COMPOSER_BUCKET=$(gcloud composer environments describe manu-composer \
             --location=us-central1 \
             --project=crested-acumen-495421-n0 \
             --format="value(config.dagGcsPrefix)")
-          
           echo "Composer DAGs bucket: $COMPOSER_BUCKET"
-          
-          # Upload the DAG file
           gsutil cp dags/manu_pipeline_dag.py $COMPOSER_BUCKET/manu_pipeline_dag.py
-          echo "Done - DAG uploaded to Composer"
+          echo "Done - DAG uploaded"
 
-      # STEP 3 - Trigger the DAG
-      - name: Step 3 - Trigger DAG in Composer
+      # STEP 3 - Wait for Composer to parse the DAG
+      - name: Step 3 - Wait for DAG to be parsed by Composer
+        run: |
+          echo "Waiting for Composer to parse the DAG..."
+          for i in {1..20}; do
+            STATUS=$(gcloud composer environments run manu-composer \
+              --location=us-central1 \
+              --project=crested-acumen-495421-n0 \
+              dags list -- --output=json 2>/dev/null | grep "manu_pipeline" | wc -l)
+            echo "Attempt $i - DAG found: $STATUS"
+            if [ "$STATUS" -gt "0" ]; then
+              echo "DAG is ready!"
+              break
+            fi
+            echo "DAG not ready yet, waiting 30s..."
+            sleep 30
+          done
+
+      # STEP 4 - Trigger the DAG
+      - name: Step 4 - Trigger DAG in Composer
         run: |
           gcloud composer environments run manu-composer \
             --location=us-central1 \
             --project=crested-acumen-495421-n0 \
             dags trigger -- manu_pipeline
           echo "Done - DAG triggered!"
+
