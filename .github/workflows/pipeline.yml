@@ -45,34 +45,19 @@ jobs:
           gsutil cp dags/manu_pipeline_dag.py $COMPOSER_BUCKET/manu_pipeline_dag.py
           echo "Done - DAG uploaded"
 
-      # STEP 3 - Wait 60s for Composer to parse the DAG
+      # STEP 3 - Wait 90s for Composer to parse the DAG
       - name: Step 3 - Wait for Composer to parse DAG
         run: |
-          echo "Waiting 60 seconds for Composer to parse the DAG..."
-          sleep 60
-          echo "Done waiting"
+          echo "Waiting 90 seconds for Composer to parse the DAG..."
+          sleep 90
+          echo "Done waiting - DAG should be ready"
 
-      # STEP 4 - Trigger DAG via Airflow REST API
-      - name: Step 4 - Trigger DAG via REST API
+      # STEP 4 - Trigger the DAG
+      - name: Step 4 - Trigger DAG in Composer
         run: |
-          # Get Composer Airflow URI
-          AIRFLOW_URI=$(gcloud composer environments describe manu-composer \
+          gcloud composer environments run manu-composer \
             --location=us-central1 \
             --project=crested-acumen-495421-n0 \
-            --format="value(config.airflowUri)")
-          echo "Airflow URI: $AIRFLOW_URI"
-
-          # Get access token
-          TOKEN=$(gcloud auth print-access-token)
-
-          # Trigger DAG via REST API
-          curl -X POST \
-            "${AIRFLOW_URI}/api/v1/dags/manu_pipeline/dagRuns" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"dag_run_id": "triggered_by_github_actions"}' \
-            --fail \
-            --silent \
-            --show-error
-          echo "DAG triggered successfully!"
+            dags trigger -- manu_pipeline
+          echo "Done - DAG triggered!"
 
