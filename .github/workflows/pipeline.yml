@@ -41,34 +41,38 @@ jobs:
             --location=us-central1 \
             --project=crested-acumen-495421-n0 \
             --format="value(config.dagGcsPrefix)")
-          echo "Composer DAGs bucket: $COMPOSER_BUCKET"
+          echo "Composer bucket: $COMPOSER_BUCKET"
           gsutil cp dags/manu_pipeline_dag.py $COMPOSER_BUCKET/manu_pipeline_dag.py
           echo "Done - DAG uploaded"
 
-      # STEP 3 - Wait for Composer to parse the DAG
-      - name: Step 3 - Wait for DAG to be parsed by Composer
+      # STEP 3 - Wait 60s for Composer to parse the DAG
+      - name: Step 3 - Wait for Composer to parse DAG
         run: |
-          echo "Waiting for Composer to parse the DAG..."
-          for i in {1..20}; do
-            STATUS=$(gcloud composer environments run manu-composer \
-              --location=us-central1 \
-              --project=crested-acumen-495421-n0 \
-              dags list -- --output=json 2>/dev/null | grep "manu_pipeline" | wc -l)
-            echo "Attempt $i - DAG found: $STATUS"
-            if [ "$STATUS" -gt "0" ]; then
-              echo "DAG is ready!"
-              break
-            fi
-            echo "DAG not ready yet, waiting 30s..."
-            sleep 30
-          done
+          echo "Waiting 60 seconds for Composer to parse the DAG..."
+          sleep 60
+          echo "Done waiting"
 
-      # STEP 4 - Trigger the DAG
-      - name: Step 4 - Trigger DAG in Composer
+      # STEP 4 - Trigger DAG via Airflow REST API
+      - name: Step 4 - Trigger DAG via REST API
         run: |
-          gcloud composer environments run manu-composer \
+          # Get Composer Airflow URI
+          AIRFLOW_URI=$(gcloud composer environments describe manu-composer \
             --location=us-central1 \
             --project=crested-acumen-495421-n0 \
-            dags trigger -- manu_pipeline
-          echo "Done - DAG triggered!"
+            --format="value(config.airflowUri)")
+          echo "Airflow URI: $AIRFLOW_URI"
+
+          # Get access token
+          TOKEN=$(gcloud auth print-access-token)
+
+          # Trigger DAG via REST API
+          curl -X POST \
+            "${AIRFLOW_URI}/api/v1/dags/manu_pipeline/dagRuns" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"dag_run_id": "triggered_by_github_actions"}' \
+            --fail \
+            --silent \
+            --show-error
+          echo "DAG triggered successfully!"
 
